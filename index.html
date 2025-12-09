@@ -1,35 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard de Ventas – Filtros rápidos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .sub {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .btn-file {
+      background: #0f172a;
+      border: 1px solid #374151;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #e5e7eb;
+    }
+    .btn-file:hover {
+      background: #111827;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: #020617;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      padding: 10px 12px;
+    }
+    .card-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #9ca3af;
+      letter-spacing: .06em;
+    }
+    .card-value {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .card-sub {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+    .filters-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      gap: 8px;
+    }
+    .filters-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .filter-block {
+      background: #020617;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+    .filter-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 3px;
+    }
+    select {
+      width: 100%;
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    select:focus {
+      outline: 1px solid #6366f1;
+    }
+    .btn-small {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+    .btn-small:hover {
+      background: #111827;
+    }
+    .table-wrapper {
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      overflow: hidden;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 11px;
+    }
+    thead {
+      position: sticky;
+      top: 0;
+      background: #020617;
+      z-index: 1;
+    }
+    th, td {
+      padding: 4px 8px;
+      white-space: nowrap;
+      border-bottom: 1px solid #020617;
+    }
+    th {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #9ca3af;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover {
+      background: #0b1120;
+    }
+    tbody tr:hover {
+      background: #020617;
+    }
+    .scroll-x {
+      overflow-x: auto;
+    }
+    .message {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 6px;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="top-bar">
+    <div>
+      <h1>Dashboard de Ventas</h1>
+      <p class="sub">Sube un archivo CSV exportado desde Excel y filtra por año, almacén, tipo de factura, cliente, vendedor y categoría.</p>
+    </div>
+    <label class="btn-file">
+      📁 Subir archivo CSV
+      <input id="fileInput" type="file" accept=".csv">
+    </label>
+  </div>
+
+  <div id="summary" class="cards hidden">
+    <div class="card">
+      <div class="card-title">Registros</div>
+      <div id="sumRows" class="card-value">0</div>
+      <div class="card-sub">Filas visibles después de filtros</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Suma Subtotal</div>
+      <div id="sumSubt" class="card-value">$0</div>
+      <div class="card-sub">Columna: subt_fac</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Suma Total</div>
+      <div id="sumTotal" class="card-value">$0</div>
+      <div class="card-sub">Columna: total_fac</div>
+    </div>
+  </div>
+
+  <div id="filtersArea" class="hidden">
+    <div class="filters-header">
+      <div style="font-size: 13px; font-weight: 600;">Filtros</div>
+      <button id="btnClear" class="btn-small">Limpiar filtros</button>
+    </div>
+    <div class="filters-container" id="filtersContainer">
+      <!-- filtros dinámicos -->
+    </div>
+  </div>
+
+  <div id="tableArea" class="hidden">
+    <div class="table-wrapper">
+      <div class="scroll-x">
+        <table id="dataTable"></table>
+      </div>
+    </div>
+    <div id="tableNote" class="message"></div>
+  </div>
+
+  <p id="message" class="message"></p>
+</div>
+
 <script>
-  // ------------------ VARIABLES GLOBALES ------------------ //
-  let originalData = [];  // arreglo de objetos (todas las filas)
-  let filteredData = [];
-  let columns = [];
-  let filtersMap = {};    // { key: { header: 'año', selected: Set([...]) } }
-  let sortState = { column: null, asc: true };
+  // --------- CONFIGURACIÓN --------- //
+  const MAX_ROWS_RENDER = 2000; // filas máx a mostrar en la tabla (para que vaya rápido)
 
-  // *** Límite de filas a dibujar en la tabla (para que no se congele) ***
-  const MAX_ROWS_RENDER = 10000;
-
-  // columnas en las que intentaremos crear segmentadores
-  const FILTER_GROUPS = [
-    { key: "anio", labels: ["año", "anio", "year"] },
-    { key: "almacen", labels: ["almacen", "almacén", "sucursal"] },
-    { key: "tipoFactura", labels: ["tipo de factura", "tipo_factura"] },
-    { key: "cliente", labels: ["cliente"] },
-    { key: "vendedor", labels: ["vendedor"] },
-    { key: "categoria", labels: ["categoria", "categoría"] },
+  const FILTER_CONFIG = [
+    {key: "anio", labels: ["año", "anio", "year"], title: "Año"},
+    {key: "almacen", labels: ["almacen", "almacén", "sucursal"], title: "Almacén"},
+    {key: "tipoFactura", labels: ["tipo de factura", "tipo_factura"], title: "Tipo de Factura"},
+    {key: "cliente", labels: ["cliente"], title: "Cliente"},
+    {key: "vendedor", labels: ["vendedor"], title: "Vendedor"},
+    {key: "categoria", labels: ["categoria", "categoría"], title: "Categoría"}
   ];
 
+  // --------- ESTADO --------- //
+  let originalData = [];    // todas las filas
+  let filteredData = [];    // filas filtradas
+  let columns = [];         // encabezados
+  let filters = {};         // { key: {header, value} }
+  let sortState = { column: null, asc: true };
+
+  // --------- ELEMENTOS --------- //
   const fileInput = document.getElementById("fileInput");
-  const messageEl = document.getElementById("message");
-  const filtersSection = document.getElementById("filtersSection");
+  const msgEl = document.getElementById("message");
+  const summaryEl = document.getElementById("summary");
+  const sumRowsEl = document.getElementById("sumRows");
+  const sumSubtEl = document.getElementById("sumSubt");
+  const sumTotalEl = document.getElementById("sumTotal");
+  const filtersArea = document.getElementById("filtersArea");
   const filtersContainer = document.getElementById("filtersContainer");
-  const tableSection = document.getElementById("tableSection");
-  const dataTable = document.getElementById("dataTable");
-  const summaryCards = document.getElementById("summaryCards");
-  const summaryRows = document.getElementById("summaryRows");
-  const summarySubt = document.getElementById("summarySubt");
-  const summaryTotal = document.getElementById("summaryTotal");
-  const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+  const btnClear = document.getElementById("btnClear");
+  const tableArea = document.getElementById("tableArea");
+  const tableEl = document.getElementById("dataTable");
+  const tableNote = document.getElementById("tableNote");
 
   function normalize(str) {
     return (str || "")
@@ -40,77 +280,73 @@
       .trim();
   }
 
-  // ------------------ LECTURA DEL ARCHIVO ------------------ //
-  fileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
+  // --------- LECTURA CSV (rápida, sin librerías) --------- //
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      messageEl.textContent = "Por ahora esta página solo acepta archivos CSV. Exporta tu tabla de Excel a CSV.";
-      return;
-    }
+    msgEl.textContent = "Leyendo archivo...";
 
-    messageEl.textContent = "Cargando archivo...";
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
 
-    const tempRows = [];
-    let rowCount = 0;
+      // detectar delimitador: ; o ,
+      const firstLine = text.split(/\r?\n/)[0] || "";
+      const semis = (firstLine.match(/;/g) || []).length;
+      const commas = (firstLine.match(/,/g) || []).length;
+      const delim = semis > commas ? ";" : ",";
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      worker: true,             // usa worker (segundo plano)
-      step: function (row) {    // se ejecuta por cada fila
-        tempRows.push(row.data);
-        rowCount++;
-        // Actualiza mensaje cada cierto número de filas para no saturar
-        if (rowCount % 5000 === 0) {
-          messageEl.textContent = `Leyendo archivo... ${rowCount.toLocaleString("es-MX")} filas`;
-        }
-      },
-      complete: function (results) {
-        if (results.errors && results.errors.length) {
-          console.error(results.errors);
-          messageEl.textContent = "Hubo errores al leer el CSV. Revisa el separador (coma) y los encabezados.";
-          return;
-        }
-
-        originalData = tempRows;
-        filteredData = [...originalData];
-        columns = originalData.length ? Object.keys(originalData[0]) : [];
-
-        if (!originalData.length) {
-          messageEl.textContent = "El archivo se cargó pero no se encontraron filas (¿tiene encabezados en la primera fila?).";
-          return;
-        }
-
-        buildFilters();
-        renderTable();
-        updateSummary();
-        filtersSection.classList.remove("hidden");
-        tableSection.classList.remove("hidden");
-        summaryCards.classList.remove("hidden");
-
-        const avisoLimite =
-          originalData.length > MAX_ROWS_RENDER
-            ? ` (mostrando las primeras ${MAX_ROWS_RENDER.toLocaleString("es-MX")} filas en la tabla)`
-            : "";
-
-        messageEl.textContent =
-          `Archivo cargado con ${originalData.length.toLocaleString("es-MX")} filas y ${columns.length} columnas${avisoLimite}.`;
-      },
-      error: function (err) {
-        console.error(err);
-        messageEl.textContent = "Error al leer el CSV: " + err.message;
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+      if (lines.length < 2) {
+        msgEl.textContent = "El archivo no tiene datos suficientes.";
+        return;
       }
-    });
+
+      const headerCells = lines[0].split(delim).map(c => c.trim());
+      columns = headerCells;
+
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(delim);
+        const rowObj = {};
+        for (let j = 0; j < headerCells.length; j++) {
+          rowObj[headerCells[j]] = (parts[j] || "").trim();
+        }
+        rows.push(rowObj);
+      }
+
+      originalData = rows;
+      filteredData = rows.slice();
+
+      if (!originalData.length) {
+        msgEl.textContent = "No se encontraron filas en el archivo.";
+        return;
+      }
+
+      buildFilters();
+      applyFilters(); // ya hace render y summary
+
+      summaryEl.classList.remove("hidden");
+      filtersArea.classList.remove("hidden");
+      tableArea.classList.remove("hidden");
+
+      const info = originalData.length.toLocaleString("es-MX");
+      msgEl.textContent = `Archivo cargado correctamente (${info} filas, ${columns.length} columnas).`;
+    };
+
+    reader.onerror = () => {
+      msgEl.textContent = "Error al leer el archivo.";
+    };
+
+    reader.readAsText(file, "utf-8");
   });
 
-  // ------------------ FILTROS ------------------ //
-  function findHeaderByLabels(labels) {
-    const normalizedCols = columns.map((c) => normalize(c));
-    for (const label of labels) {
-      const normLabel = normalize(label);
-      const idx = normalizedCols.indexOf(normLabel);
+  // --------- FILTROS --------- //
+  function getHeaderByLabels(labels) {
+    const normCols = columns.map(c => normalize(c));
+    for (const lb of labels) {
+      const idx = normCols.indexOf(normalize(lb));
       if (idx !== -1) return columns[idx];
     }
     return null;
@@ -118,186 +354,193 @@
 
   function buildFilters() {
     filtersContainer.innerHTML = "";
-    filtersMap = {};
+    filters = {};
 
-    FILTER_GROUPS.forEach((group) => {
-      const header = findHeaderByLabels(group.labels);
-      if (!header) return; // esa columna no existe en este archivo
+    FILTER_CONFIG.forEach(cfg => {
+      const header = getHeaderByLabels(cfg.labels);
+      if (!header) return; // si no existe la columna, no se crea filtro
 
-      const valuesSet = new Set(
-        originalData
-          .map((row) => row[header])
-          .filter((v) => v !== undefined && v !== null && v !== "")
-      );
-      const values = Array.from(valuesSet).sort((a, b) =>
-        String(a).localeCompare(String(b), "es", { numeric: true })
+      // valores únicos
+      const setVals = new Set(originalData.map(r => r[header]).filter(v => v !== ""));
+      const values = Array.from(setVals).sort((a, b) =>
+        String(a).localeCompare(String(b), "es", {numeric: true})
       );
 
-      filtersMap[group.key] = {
-        header,
-        selected: new Set(), // vacío = todos
-      };
+      filters[cfg.key] = { header: header, value: "TODOS" };
 
-      const filterCard = document.createElement("div");
-      filterCard.className =
-        "rounded-xl bg-slate-800/80 border border-slate-700 p-3 flex flex-col gap-2 shadow";
+      const block = document.createElement("div");
+      block.className = "filter-block";
 
-      const title = document.createElement("div");
-      title.className = "flex items-center justify-between gap-2";
-      title.innerHTML = `
-        <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-          ${header}
-        </span>
-        <button class="text-[10px] px-2 py-0.5 rounded-full bg-slate-900/70 border border-slate-600 hover:bg-slate-700"
-          data-clear="${group.key}">
-          Todos
-        </button>
-      `;
-      filterCard.appendChild(title);
+      const label = document.createElement("div");
+      label.className = "filter-label";
+      label.textContent = cfg.title + " (" + header + ")";
+      block.appendChild(label);
 
-      // Input de búsqueda
-      const searchInput = document.createElement("input");
-      searchInput.type = "text";
-      searchInput.placeholder = "Buscar...";
-      searchInput.className =
-        "text-xs bg-slate-900/70 border border-slate-600 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500";
-      filterCard.appendChild(searchInput);
+      const sel = document.createElement("select");
+      sel.dataset.filterKey = cfg.key;
 
-      // Contenedor de opciones
-      const optionsWrapper = document.createElement("div");
-      optionsWrapper.className =
-        "mt-1 max-h-40 overflow-y-auto space-y-1 text-xs";
-      filterCard.appendChild(optionsWrapper);
+      const optAll = document.createElement("option");
+      optAll.value = "TODOS";
+      optAll.textContent = "Todos";
+      sel.appendChild(optAll);
 
-      function renderOptions(filterText = "") {
-        optionsWrapper.innerHTML = "";
-        const normFilter = normalize(filterText);
-
-        values
-          .filter((v) => !normFilter || normalize(String(v)).includes(normFilter))
-          .forEach((val) => {
-            const id = `${group.key}-${normalize(String(val)).replace(/[^a-z0-9]+/g, "-")}`;
-            const wrapper = document.createElement("label");
-            wrapper.className = "flex items-center gap-2 cursor-pointer";
-            const checked = filtersMap[group.key].selected.has(val);
-
-            wrapper.innerHTML = `
-              <input type="checkbox" id="${id}" value="${val}"
-                class="h-3 w-3 rounded border-slate-500 bg-slate-900 text-indigo-500"
-                ${checked ? "checked" : ""}/>
-              <span class="truncate" title="${val}">${val}</span>
-            `;
-            optionsWrapper.appendChild(wrapper);
-          });
-      }
-
-      renderOptions();
-
-      // Eventos
-      searchInput.addEventListener("input", (e) => {
-        renderOptions(e.target.value);
+      values.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        sel.appendChild(opt);
       });
 
-      filterCard.addEventListener("change", (e) => {
-        if (e.target.type === "checkbox") {
-          const val = e.target.value;
-          const set = filtersMap[group.key].selected;
-          if (e.target.checked) {
-            set.add(val);
-          } else {
-            set.delete(val);
-          }
-          applyFilters();
-        }
-      });
-
-      // botón "Todos" solo limpia selección
-      title.querySelector("[data-clear]").addEventListener("click", () => {
-        filtersMap[group.key].selected.clear();
-        // desmarcar checkboxes
-        optionsWrapper
-          .querySelectorAll('input[type="checkbox"]')
-          .forEach((chk) => (chk.checked = false));
+      sel.addEventListener("change", e => {
+        const key = e.target.dataset.filterKey;
+        filters[key].value = e.target.value;
         applyFilters();
       });
 
-      filtersContainer.appendChild(filterCard);
+      block.appendChild(sel);
+      filtersContainer.appendChild(block);
     });
+
+    btnClear.onclick = () => {
+      Object.keys(filters).forEach(k => {
+        filters[k].value = "TODOS";
+      });
+      // reset selects
+      filtersContainer.querySelectorAll("select").forEach(s => {
+        s.value = "TODOS";
+      });
+      applyFilters();
+    };
   }
 
   function applyFilters() {
-    filteredData = originalData.filter((row) => {
-      return Object.values(filtersMap).every((fObj) => {
-        const value = row[fObj.header];
-        const set = fObj.selected;
-        if (!set || set.size === 0) return true; // sin filtro: pasa
-        return set.has(value);
-      });
+    filteredData = originalData.filter(row => {
+      for (const key in filters) {
+        const f = filters[key];
+        if (f.value === "TODOS") continue;
+        if (row[f.header] !== f.value) return false;
+      }
+      return true;
     });
+
+    // si había orden aplicado, vuelve a ordenar
+    if (sortState.column) {
+      sortByColumn(sortState.column, sortState.asc, false);
+    }
 
     renderTable();
     updateSummary();
   }
 
-  clearFiltersBtn.addEventListener("click", () => {
-    Object.values(filtersMap).forEach((f) => f.selected.clear());
-    // desmarcar todas las casillas
-    filtersContainer
-      .querySelectorAll('input[type="checkbox"]')
-      .forEach((chk) => (chk.checked = false));
-    applyFilters();
-  });
-
-  // ------------------ TABLA ------------------ //
+  // --------- TABLA --------- //
   function renderTable() {
     if (!columns.length) return;
+
     let html = "";
 
-    // encabezados
-    html += `<thead class="bg-slate-800/90 text-xs uppercase text-slate-300 sticky top-0 z-10">
-      <tr>`;
-    columns.forEach((col, idx) => {
+    // encabezado
+    html += "<thead><tr>";
+    columns.forEach(col => {
       const isSorted = sortState.column === col;
-      html += `
-        <th
-          class="px-3 py-2 border-b border-slate-700 whitespace-nowrap cursor-pointer select-none hover:bg-slate-700/70"
-          data-col-index="${idx}">
-          <div class="flex items-center gap-1">
-            <span>${col}</span>
-            ${
-              isSorted
-                ? sortState.asc
-                  ? "▲"
-                  : "▼"
-                : ""
-            }
-          </div>
-        </th>`;
+      const icon = isSorted ? (sortState.asc ? " ▲" : " ▼") : "";
+      html += `<th data-col="${escapeHtml(col)}">${escapeHtml(col)}${icon}</th>`;
     });
-    html += `</tr></thead>`;
+    html += "</tr></thead>";
 
-    // cuerpo (sólo mostramos hasta MAX_ROWS_RENDER filas)
+    // cuerpo (limitado)
     const rowsToShow = filteredData.slice(0, MAX_ROWS_RENDER);
 
-    html += `<tbody class="divide-y divide-slate-800 text-xs">`;
-    rowsToShow.forEach((row) => {
-      html += `<tr class="hover:bg-slate-800/70">`;
-      columns.forEach((col) => {
-        const val = row[col] ?? "";
-        html += `<td class="px-3 py-1.5 whitespace-nowrap">${escapeHtml(
-          val
-        )}</td>`;
+    html += "<tbody>";
+    rowsToShow.forEach(row => {
+      html += "<tr>";
+      columns.forEach(col => {
+        const val = row[col] || "";
+        html += `<td>${escapeHtml(val)}</td>`;
       });
-      html += `</tr>`;
+      html += "</tr>";
     });
-    html += `</tbody>`;
+    html += "</tbody>";
 
-    dataTable.innerHTML = html;
+    tableEl.innerHTML = html;
 
-    // Eventos de ordenamiento
-    dataTable
-      .querySelectorAll("th[data-col-index]")
-      .forEach((th) => th.addEventListener("click", onHeaderClick));
+    // eventos para ordenar
+    tableEl.querySelectorAll("th[data-col]").forEach(th => {
+      th.addEventListener("click", () => {
+        const col = th.getAttribute("data-col");
+        const asc = !(sortState.column === col && sortState.asc === true);
+        sortByColumn(col, asc, true);
+      });
+    });
+
+    if (filteredData.length > MAX_ROWS_RENDER) {
+      tableNote.textContent =
+        `Mostrando las primeras ${MAX_ROWS_RENDER.toLocaleString("es-MX")} filas de ` +
+        `${filteredData.length.toLocaleString("es-MX")} (los totales usan todas).`;
+    } else {
+      tableNote.textContent = "";
+    }
+  }
+
+  function sortByColumn(col, asc, rerender) {
+    filteredData.sort((a, b) => {
+      const va = a[col] || "";
+      const vb = b[col] || "";
+
+      const na = parseFloat(String(va).replace(/[^0-9.-]+/g, ""));
+      const nb = parseFloat(String(vb).replace(/[^0-9.-]+/g, ""));
+      const bothNum = !isNaN(na) && !isNaN(nb);
+
+      if (bothNum) {
+        return asc ? na - nb : nb - na;
+      } else {
+        return asc
+          ? String(va).localeCompare(String(vb), "es", {numeric: true})
+          : String(vb).localeCompare(String(va), "es", {numeric: true});
+      }
+    });
+
+    sortState.column = col;
+    sortState.asc = asc;
+
+    if (rerender) {
+      renderTable();
+    }
+  }
+
+  // --------- RESUMEN --------- //
+  function updateSummary() {
+    sumRowsEl.textContent = filteredData.length.toLocaleString("es-MX");
+
+    const subtHeader = columns.find(c => normalize(c) === "subt_fac");
+    const totalHeader = columns.find(c => normalize(c) === "total_fac");
+
+    let subt = 0;
+    let total = 0;
+
+    if (subtHeader) {
+      filteredData.forEach(row => {
+        const n = parseFloat(String(row[subtHeader]).replace(/[^0-9.-]+/g, ""));
+        if (!isNaN(n)) subt += n;
+      });
+    }
+
+    if (totalHeader) {
+      filteredData.forEach(row => {
+        const n = parseFloat(String(row[totalHeader]).replace(/[^0-9.-]+/g, ""));
+        if (!isNaN(n)) total += n;
+      });
+    }
+
+    sumSubtEl.textContent = formatMoney(subt);
+    sumTotalEl.textContent = formatMoney(total);
+  }
+
+  function formatMoney(n) {
+    return n.toLocaleString("es-MX", {
+      style: "currency",
+      currency: "MXN",
+      maximumFractionDigits: 0
+    });
   }
 
   function escapeHtml(value) {
@@ -306,73 +549,6 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   }
-
-  function onHeaderClick(e) {
-    const idx = Number(e.currentTarget.getAttribute("data-col-index"));
-    const col = columns[idx];
-    if (!col) return;
-
-    if (sortState.column === col) {
-      sortState.asc = !sortState.asc;
-    } else {
-      sortState.column = col;
-      sortState.asc = true;
-    }
-
-    filteredData.sort((a, b) => {
-      const va = a[col];
-      const vb = b[col];
-
-      const na = parseFloat(String(va).replace(/[^0-9.-]+/g, ""));
-      const nb = parseFloat(String(vb).replace(/[^0-9.-]+/g, ""));
-
-      const bothNumeric = !isNaN(na) && !isNaN(nb);
-
-      if (bothNumeric) {
-        return sortState.asc ? na - nb : nb - na;
-      } else {
-        return sortState.asc
-          ? String(va).localeCompare(String(vb), "es", { numeric: true })
-          : String(vb).localeCompare(String(va), "es", { numeric: true });
-      }
-    });
-
-    renderTable();
-  }
-
-  // ------------------ RESUMEN ------------------ //
-  function updateSummary() {
-    summaryRows.textContent = filteredData.length.toLocaleString("es-MX");
-
-    const subtHeader = columns.find((c) => normalize(c) === "subt_fac");
-    const totalHeader = columns.find((c) => normalize(c) === "total_fac");
-
-    let subt = 0;
-    let total = 0;
-
-    if (subtHeader) {
-      subt = filteredData.reduce((acc, row) => {
-        const n = parseFloat(String(row[subtHeader]).replace(/[^0-9.-]+/g, ""));
-        return acc + (isNaN(n) ? 0 : n);
-      }, 0);
-    }
-
-    if (totalHeader) {
-      total = filteredData.reduce((acc, row) => {
-        const n = parseFloat(String(row[totalHeader]).replace(/[^0-9.-]+/g, ""));
-        return acc + (isNaN(n) ? 0 : n);
-      }, 0);
-    }
-
-    summarySubt.textContent = subt.toLocaleString("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      maximumFractionDigits: 0,
-    });
-    summaryTotal.textContent = total.toLocaleString("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      maximumFractionDigits: 0,
-    });
-  }
 </script>
+</body>
+</html>
