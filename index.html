@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard de Ventas – Filtros tipo Excel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- PapaParse para leer CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    /* Scroll bonito para tablas grandes */
+    ::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">
+          Dashboard de Ventas
+        </h1>
+        <p class="text-slate-400 text-sm">
+          Sube un archivo <span class="font-semibold">CSV</span> y filtra como en Excel, pero más cómodo 😎.
+        </p>
+      </div>
+
+      <!-- Selector de archivo -->
+      <label
+        class="cursor-pointer inline-flex items-center gap-3 rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium shadow hover:bg-slate-700 transition">
+        <span class="material-symbols-outlined">📁</span>
+        <span>Subir archivo CSV</span>
+        <input id="fileInput" type="file" accept=".csv" class="hidden" />
+      </label>
+    </header>
+
+    <!-- Tarjetas de resumen -->
+    <section id="summaryCards" class="grid grid-cols-1 sm:grid-cols-3 gap-4 hidden">
+      <div class="rounded-2xl bg-slate-800/80 border border-slate-700 p-4 shadow">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Registros</p>
+        <p id="summaryRows" class="text-2xl font-bold mt-1">0</p>
+        <p class="text-xs text-slate-500 mt-1">Filas visibles después de filtros</p>
+      </div>
+      <div class="rounded-2xl bg-slate-800/80 border border-slate-700 p-4 shadow">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Suma Subtotal</p>
+        <p id="summarySubt" class="text-2xl font-bold mt-1">$0</p>
+        <p class="text-xs text-slate-500 mt-1">Columna: <code>subt_fac</code></p>
+      </div>
+      <div class="rounded-2xl bg-slate-800/80 border border-slate-700 p-4 shadow">
+        <p class="text-xs uppercase tracking-wide text-slate-400">Suma Total</p>
+        <p id="summaryTotal" class="text-2xl font-bold mt-1">$0</p>
+        <p class="text-xs text-slate-500 mt-1">Columna: <code>total_fac</code></p>
+      </div>
+    </section>
+
+    <!-- Contenedor de filtros -->
+    <section id="filtersSection" class="space-y-3 hidden">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">Filtros</h2>
+        <button id="clearFiltersBtn"
+          class="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-600 hover:bg-slate-700">
+          Limpiar filtros
+        </button>
+      </div>
+
+      <div id="filtersContainer"
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <!-- Aquí se agregan los filtros dinámicamente -->
+      </div>
+    </section>
+
+    <!-- Tabla -->
+    <section id="tableSection" class="hidden">
+      <div
+        class="rounded-2xl bg-slate-900/70 border border-slate-700 overflow-hidden shadow-inner flex flex-col max-h-[70vh]">
+        <div class="overflow-x-auto">
+          <table id="dataTable" class="min-w-full text-sm">
+            <!-- Head y body se llenan por JS -->
+          </table>
+        </div>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">
+        Tip: puedes ordenar cualquier columna dando clic en el encabezado.
+      </p>
+    </section>
+
+    <!-- Mensajes -->
+    <p id="message" class="text-sm text-slate-400"></p>
+
+  </div>
+
+  <script>
+    // ------------------ VARIABLES GLOBALES ------------------ //
+    let originalData = [];  // arreglo de objetos
+    let filteredData = [];
+    let columns = [];
+    let filtersMap = {};    // { key: { header: 'año', selected: Set([...]) } }
+    let sortState = { column: null, asc: true };
+
+    // columnas en las que intentaremos crear segmentadores
+    const FILTER_GROUPS = [
+      { key: "anio", labels: ["año", "anio", "year"] },
+      { key: "almacen", labels: ["almacen", "almacén", "sucursal"] },
+      { key: "tipoFactura", labels: ["tipo de factura", "tipo_factura"] },
+      { key: "cliente", labels: ["cliente"] },
+      { key: "vendedor", labels: ["vendedor"] },
+      { key: "categoria", labels: ["categoria", "categoría"] },
+    ];
+
+    const fileInput = document.getElementById("fileInput");
+    const messageEl = document.getElementById("message");
+    const filtersSection = document.getElementById("filtersSection");
+    const filtersContainer = document.getElementById("filtersContainer");
+    const tableSection = document.getElementById("tableSection");
+    const dataTable = document.getElementById("dataTable");
+    const summaryCards = document.getElementById("summaryCards");
+    const summaryRows = document.getElementById("summaryRows");
+    const summarySubt = document.getElementById("summarySubt");
+    const summaryTotal = document.getElementById("summaryTotal");
+    const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+
+    function normalize(str) {
+      return (str || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    }
+
+    // ------------------ LECTURA DEL ARCHIVO ------------------ //
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        messageEl.textContent = "Por ahora esta página solo acepta archivos CSV. Exporta tu tabla de Excel a CSV.";
+        return;
+      }
+
+      messageEl.textContent = "Cargando archivo, un momento...";
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length) {
+            console.error(results.errors);
+            messageEl.textContent = "Hubo errores al leer el CSV. Revisa el separador (coma) y los encabezados.";
+          } else {
+            originalData = results.data;
+            filteredData = [...originalData];
+            columns = originalData.length ? Object.keys(originalData[0]) : [];
+            buildFilters();
+            renderTable();
+            updateSummary();
+            filtersSection.classList.remove("hidden");
+            tableSection.classList.remove("hidden");
+            summaryCards.classList.remove("hidden");
+            messageEl.textContent = `Archivo cargado con ${originalData.length} filas y ${columns.length} columnas.`;
+          }
+        }
+      });
+    });
+
+    // ------------------ FILTROS ------------------ //
+    function findHeaderByLabels(labels) {
+      const normalizedCols = columns.map((c) => normalize(c));
+      for (const label of labels) {
+        const normLabel = normalize(label);
+        const idx = normalizedCols.indexOf(normLabel);
+        if (idx !== -1) return columns[idx];
+      }
+      return null;
+    }
+
+    function buildFilters() {
+      filtersContainer.innerHTML = "";
+      filtersMap = {};
+
+      FILTER_GROUPS.forEach((group) => {
+        const header = findHeaderByLabels(group.labels);
+        if (!header) return; // esa columna no existe en este archivo
+
+        const valuesSet = new Set(
+          originalData
+            .map((row) => row[header])
+            .filter((v) => v !== undefined && v !== null && v !== "")
+        );
+        const values = Array.from(valuesSet).sort((a, b) =>
+          String(a).localeCompare(String(b), "es", { numeric: true })
+        );
+
+        filtersMap[group.key] = {
+          header,
+          selected: new Set(), // vacío = todos
+        };
+
+        const filterCard = document.createElement("div");
+        filterCard.className =
+          "rounded-xl bg-slate-800/80 border border-slate-700 p-3 flex flex-col gap-2 shadow";
+
+        const title = document.createElement("div");
+        title.className = "flex items-center justify-between gap-2";
+        title.innerHTML = `
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            ${header}
+          </span>
+          <button class="text-[10px] px-2 py-0.5 rounded-full bg-slate-900/70 border border-slate-600 hover:bg-slate-700"
+            data-clear="${group.key}">
+            Todos
+          </button>
+        `;
+        filterCard.appendChild(title);
+
+        // Input de búsqueda
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.placeholder = "Buscar...";
+        searchInput.className =
+          "text-xs bg-slate-900/70 border border-slate-600 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+        filterCard.appendChild(searchInput);
+
+        // Contenedor de opciones
+        const optionsWrapper = document.createElement("div");
+        optionsWrapper.className =
+          "mt-1 max-h-40 overflow-y-auto space-y-1 text-xs";
+        filterCard.appendChild(optionsWrapper);
+
+        function renderOptions(filterText = "") {
+          optionsWrapper.innerHTML = "";
+          const normFilter = normalize(filterText);
+
+          values
+            .filter((v) => !normFilter || normalize(String(v)).includes(normFilter))
+            .forEach((val) => {
+              const id = `${group.key}-${normalize(String(val)).replace(/[^a-z0-9]+/g, "-")}`;
+              const wrapper = document.createElement("label");
+              wrapper.className = "flex items-center gap-2 cursor-pointer";
+              const checked = filtersMap[group.key].selected.has(val);
+
+              wrapper.innerHTML = `
+                <input type="checkbox" id="${id}" value="${val}"
+                  class="h-3 w-3 rounded border-slate-500 bg-slate-900 text-indigo-500"
+                  ${checked ? "checked" : ""}/>
+                <span class="truncate" title="${val}">${val}</span>
+              `;
+              optionsWrapper.appendChild(wrapper);
+            });
+        }
+
+        renderOptions();
+
+        // Eventos
+        searchInput.addEventListener("input", (e) => {
+          renderOptions(e.target.value);
+        });
+
+        filterCard.addEventListener("change", (e) => {
+          if (e.target.type === "checkbox") {
+            const val = e.target.value;
+            const set = filtersMap[group.key].selected;
+            if (e.target.checked) {
+              set.add(val);
+            } else {
+              set.delete(val);
+            }
+            applyFilters();
+          }
+        });
+
+        // botón "Todos" solo limpia selección
+        title.querySelector("[data-clear]").addEventListener("click", () => {
+          filtersMap[group.key].selected.clear();
+          // desmarcar checkboxes
+          optionsWrapper
+            .querySelectorAll('input[type="checkbox"]')
+            .forEach((chk) => (chk.checked = false));
+          applyFilters();
+        });
+
+        filtersContainer.appendChild(filterCard);
+      });
+    }
+
+    function applyFilters() {
+      filteredData = originalData.filter((row) => {
+        return Object.values(filtersMap).every((fObj) => {
+          const value = row[fObj.header];
+          const set = fObj.selected;
+          if (!set || set.size === 0) return true; // sin filtro: pasa
+          return set.has(value);
+        });
+      });
+
+      renderTable();
+      updateSummary();
+    }
+
+    clearFiltersBtn.addEventListener("click", () => {
+      Object.values(filtersMap).forEach((f) => f.selected.clear());
+      // desmarcar todas las casillas
+      filtersContainer
+        .querySelectorAll('input[type="checkbox"]')
+        .forEach((chk) => (chk.checked = false));
+      applyFilters();
+    });
+
+    // ------------------ TABLA ------------------ //
+    function renderTable() {
+      if (!columns.length) return;
+      let html = "";
+
+      // encabezados
+      html += `<thead class="bg-slate-800/90 text-xs uppercase text-slate-300 sticky top-0 z-10">
+        <tr>`;
+      columns.forEach((col, idx) => {
+        const isSorted = sortState.column === col;
+        html += `
+          <th
+            class="px-3 py-2 border-b border-slate-700 whitespace-nowrap cursor-pointer select-none hover:bg-slate-700/70"
+            data-col-index="${idx}">
+            <div class="flex items-center gap-1">
+              <span>${col}</span>
+              ${
+                isSorted
+                  ? sortState.asc
+                    ? "▲"
+                    : "▼"
+                  : ""
+              }
+            </div>
+          </th>`;
+      });
+      html += `</tr></thead>`;
+
+      // cuerpo
+      html += `<tbody class="divide-y divide-slate-800 text-xs">`;
+      filteredData.forEach((row) => {
+        html += `<tr class="hover:bg-slate-800/70">`;
+        columns.forEach((col) => {
+          const val = row[col] ?? "";
+          html += `<td class="px-3 py-1.5 whitespace-nowrap">${escapeHtml(
+            val
+          )}</td>`;
+        });
+        html += `</tr>`;
+      });
+      html += `</tbody>`;
+
+      dataTable.innerHTML = html;
+
+      // Eventos de ordenamiento
+      dataTable
+        .querySelectorAll("th[data-col-index]")
+        .forEach((th) => th.addEventListener("click", onHeaderClick));
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function onHeaderClick(e) {
+      const idx = Number(e.currentTarget.getAttribute("data-col-index"));
+      const col = columns[idx];
+      if (!col) return;
+
+      if (sortState.column === col) {
+        sortState.asc = !sortState.asc;
+      } else {
+        sortState.column = col;
+        sortState.asc = true;
+      }
+
+      filteredData.sort((a, b) => {
+        const va = a[col];
+        const vb = b[col];
+
+        const na = parseFloat(String(va).replace(/[^0-9.-]+/g, ""));
+        const nb = parseFloat(String(vb).replace(/[^0-9.-]+/g, ""));
+
+        const bothNumeric = !isNaN(na) && !isNaN(nb);
+
+        if (bothNumeric) {
+          return sortState.asc ? na - nb : nb - na;
+        } else {
+          return sortState.asc
+            ? String(va).localeCompare(String(vb), "es", { numeric: true })
+            : String(vb).localeCompare(String(va), "es", { numeric: true });
+        }
+      });
+
+      renderTable();
+    }
+
+    // ------------------ RESUMEN ------------------ //
+    function updateSummary() {
+      summaryRows.textContent = filteredData.length.toLocaleString("es-MX");
+
+      const subtHeader = columns.find((c) => normalize(c) === "subt_fac");
+      const totalHeader = columns.find((c) => normalize(c) === "total_fac");
+
+      let subt = 0;
+      let total = 0;
+
+      if (subtHeader) {
+        subt = filteredData.reduce((acc, row) => {
+          const n = parseFloat(String(row[subtHeader]).replace(/[^0-9.-]+/g, ""));
+          return acc + (isNaN(n) ? 0 : n);
+        }, 0);
+      }
+
+      if (totalHeader) {
+        total = filteredData.reduce((acc, row) => {
+          const n = parseFloat(String(row[totalHeader]).replace(/[^0-9.-]+/g, ""));
+          return acc + (isNaN(n) ? 0 : n);
+        }, 0);
+      }
+
+      summarySubt.textContent = subt.toLocaleString("es-MX", {
+        style: "currency",
+        currency: "MXN",
+        maximumFractionDigits: 0,
+      });
+      summaryTotal.textContent = total.toLocaleString("es-MX", {
+        style: "currency",
+        currency: "MXN",
+        maximumFractionDigits: 0,
+      });
+    }
+  </script>
+</body>
+</html>
