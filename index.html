@@ -109,6 +109,19 @@
       color: #9ca3af;
       margin-bottom: 3px;
     }
+    .filter-search {
+      width: 100%;
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      margin-bottom: 4px;
+    }
+    .filter-search::placeholder {
+      color: #6b7280;
+    }
     select {
       width: 100%;
       font-size: 11px;
@@ -182,6 +195,24 @@
     .hidden {
       display: none !important;
     }
+    /* celdas con valores negativos */
+    .negativo {
+      color: #f97373;
+      font-weight: 600;
+    }
+    /* estilos para encabezados ordenados */
+    th.orden-activo {
+      background: #0b1120;
+      color: #ffffff;
+    }
+    th .icon-orden {
+      margin-left: 4px;
+      font-size: 9px;
+      opacity: 0.6;
+    }
+    th.orden-activo .icon-orden {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -239,22 +270,23 @@
 
 <script>
   // --------- CONFIGURACIÓN --------- //
-  const MAX_ROWS_RENDER = 2000; // filas máx a mostrar en la tabla (para que vaya rápido)
+  const MAX_ROWS_RENDER = 2000; // filas máx a mostrar
 
+  // colIndex: refuerzo por posición (A=0, B=1, ..., H=7, L=11, Z=25)
   const FILTER_CONFIG = [
-    {key: "anio", labels: ["año", "anio", "year"], title: "Año"},
-    {key: "almacen", labels: ["almacen", "almacén", "sucursal"], title: "Almacén"},
-    {key: "tipoFactura", labels: ["tipo de factura", "tipo_factura"], title: "Tipo de Factura"},
-    {key: "cliente", labels: ["cliente"], title: "Cliente"},
-    {key: "vendedor", labels: ["vendedor"], title: "Vendedor"},
-    {key: "categoria", labels: ["categoria", "categoría"], title: "Categoría"}
+    {key: "anio",       labels: ["año", "anio", "year"],            title: "Año",            colIndex: 0},
+    {key: "almacen",    labels: ["almacen", "almacén", "sucursal"], title: "Almacén"},
+    {key: "tipoFactura",labels: ["tipo de factura", "tipo_factura"],title: "Tipo de Factura", colIndex: 7},
+    {key: "cliente",    labels: ["cliente"],                        title: "Cliente"},
+    {key: "vendedor",   labels: ["vendedor"],                       title: "Vendedor",       colIndex: 25},
+    {key: "categoria",  labels: ["categoria", "categoría"],         title: "Categoría",      colIndex: 11}
   ];
 
   // --------- ESTADO --------- //
-  let originalData = [];    // todas las filas
-  let filteredData = [];    // filas filtradas
-  let columns = [];         // encabezados
-  let filters = {};         // { key: {header, value} }
+  let originalData = [];
+  let filteredData = [];
+  let columns = [];
+  let filters = {};
   let sortState = { column: null, asc: true };
 
   // --------- ELEMENTOS --------- //
@@ -280,7 +312,7 @@
       .trim();
   }
 
-  // --------- LECTURA CSV (rápida, sin librerías) --------- //
+  // --------- LECTURA CSV --------- //
   fileInput.addEventListener("change", () => {
     const file = fileInput.files[0];
     if (!file) return;
@@ -291,7 +323,6 @@
     reader.onload = (e) => {
       const text = e.target.result;
 
-      // detectar delimitador: ; o ,
       const firstLine = text.split(/\r?\n/)[0] || "";
       const semis = (firstLine.match(/;/g) || []).length;
       const commas = (firstLine.match(/,/g) || []).length;
@@ -325,7 +356,7 @@
       }
 
       buildFilters();
-      applyFilters(); // ya hace render y summary
+      applyFilters();
 
       summaryEl.classList.remove("hidden");
       filtersArea.classList.remove("hidden");
@@ -343,11 +374,16 @@
   });
 
   // --------- FILTROS --------- //
-  function getHeaderByLabels(labels) {
+  function getHeaderByLabelsOrIndex(cfg) {
     const normCols = columns.map(c => normalize(c));
-    for (const lb of labels) {
+    // 1) por nombre
+    for (const lb of (cfg.labels || [])) {
       const idx = normCols.indexOf(normalize(lb));
       if (idx !== -1) return columns[idx];
+    }
+    // 2) por índice explícito
+    if (typeof cfg.colIndex === "number" && columns[cfg.colIndex]) {
+      return columns[cfg.colIndex];
     }
     return null;
   }
@@ -357,12 +393,13 @@
     filters = {};
 
     FILTER_CONFIG.forEach(cfg => {
-      const header = getHeaderByLabels(cfg.labels);
-      if (!header) return; // si no existe la columna, no se crea filtro
+      const header = getHeaderByLabelsOrIndex(cfg);
+      if (!header) return;
 
-      // valores únicos
-      const setVals = new Set(originalData.map(r => r[header]).filter(v => v !== ""));
-      const values = Array.from(setVals).sort((a, b) =>
+      const setVals = new Set(
+        originalData.map(r => r[header]).filter(v => v !== "")
+      );
+      const allValues = Array.from(setVals).sort((a, b) =>
         String(a).localeCompare(String(b), "es", {numeric: true})
       );
 
@@ -373,22 +410,50 @@
 
       const label = document.createElement("div");
       label.className = "filter-label";
-      label.textContent = cfg.title + " (" + header + ")";
+      label.textContent = `${cfg.title} (${header})`;
       block.appendChild(label);
+
+      const search = document.createElement("input");
+      search.type = "text";
+      search.placeholder = "Buscar...";
+      search.className = "filter-search";
+      block.appendChild(search);
 
       const sel = document.createElement("select");
       sel.dataset.filterKey = cfg.key;
+      block.appendChild(sel);
 
-      const optAll = document.createElement("option");
-      optAll.value = "TODOS";
-      optAll.textContent = "Todos";
-      sel.appendChild(optAll);
+      function renderOptions(term = "") {
+        const normTerm = normalize(term);
+        sel.innerHTML = "";
 
-      values.forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        sel.appendChild(opt);
+        const optAll = document.createElement("option");
+        optAll.value = "TODOS";
+        optAll.textContent = "Todos";
+        sel.appendChild(optAll);
+
+        allValues
+          .filter(v => !normTerm || normalize(String(v)).includes(normTerm))
+          .forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            sel.appendChild(opt);
+          });
+
+        if (filters[cfg.key].value && filters[cfg.key].value !== "TODOS") {
+          sel.value = filters[cfg.key].value;
+          if (sel.value !== filters[cfg.key].value) {
+            filters[cfg.key].value = "TODOS";
+            sel.value = "TODOS";
+          }
+        }
+      }
+
+      renderOptions();
+
+      search.addEventListener("input", e => {
+        renderOptions(e.target.value);
       });
 
       sel.addEventListener("change", e => {
@@ -397,7 +462,6 @@
         applyFilters();
       });
 
-      block.appendChild(sel);
       filtersContainer.appendChild(block);
     });
 
@@ -405,9 +469,11 @@
       Object.keys(filters).forEach(k => {
         filters[k].value = "TODOS";
       });
-      // reset selects
       filtersContainer.querySelectorAll("select").forEach(s => {
         s.value = "TODOS";
+      });
+      filtersContainer.querySelectorAll(".filter-search").forEach(i => {
+        i.value = "";
       });
       applyFilters();
     };
@@ -423,7 +489,6 @@
       return true;
     });
 
-    // si había orden aplicado, vuelve a ordenar
     if (sortState.column) {
       sortByColumn(sortState.column, sortState.asc, false);
     }
@@ -438,16 +503,21 @@
 
     let html = "";
 
-    // encabezado
+    // encabezado con iconos de orden
     html += "<thead><tr>";
     columns.forEach(col => {
       const isSorted = sortState.column === col;
-      const icon = isSorted ? (sortState.asc ? " ▲" : " ▼") : "";
-      html += `<th data-col="${escapeHtml(col)}">${escapeHtml(col)}${icon}</th>`;
+      const icon = isSorted ? (sortState.asc ? "▲" : "▼") : "▲▼";
+      const cls = isSorted ? "orden-activo" : "";
+      html += `
+        <th data-col="${escapeHtml(col)}" class="${cls}">
+          ${escapeHtml(col)}
+          <span class="icon-orden">${icon}</span>
+        </th>`;
     });
     html += "</tr></thead>";
 
-    // cuerpo (limitado)
+    // cuerpo
     const rowsToShow = filteredData.slice(0, MAX_ROWS_RENDER);
 
     html += "<tbody>";
@@ -455,7 +525,10 @@
       html += "<tr>";
       columns.forEach(col => {
         const val = row[col] || "";
-        html += `<td>${escapeHtml(val)}</td>`;
+        const num = parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+        const isNeg = !isNaN(num) && num < 0;
+        const cls = isNeg ? "negativo" : "";
+        html += `<td class="${cls}">${escapeHtml(val)}</td>`;
       });
       html += "</tr>";
     });
@@ -463,7 +536,7 @@
 
     tableEl.innerHTML = html;
 
-    // eventos para ordenar
+    // eventos ordenar
     tableEl.querySelectorAll("th[data-col]").forEach(th => {
       th.addEventListener("click", () => {
         const col = th.getAttribute("data-col");
